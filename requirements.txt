@@ -1,0 +1,4 @@
+wordcloud
+seaborn
+textblob
+bs4
