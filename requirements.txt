@@ -1,4 +1,8 @@
-wordcloud
+streamlit
+pandas
+vaderSentiment
+matplotlib
 seaborn
-textblob
-bs4
+wordcloud
+plotly
+openpyxl
