@@ -45,7 +45,12 @@ df = pd.read_excel(FILE_PATH)
 # VADER Sentiment Analysis
 analyzer = SentimentIntensityAnalyzer()
 df['sentiment_scores'] = df['review_body'].astype(str).apply(lambda x: analyzer.polarity_scores(x)['compound'])
+# df['sentiment_label'] = df['sentiment_scores'].apply(lambda c: 'Positive' if c >= 0.05 else ('Negative' if c <= -0.05 else 'Neutral'))
+# Assign initial sentiment labels
 df['sentiment_label'] = df['sentiment_scores'].apply(lambda c: 'Positive' if c >= 0.05 else ('Negative' if c <= -0.05 else 'Neutral'))
+
+# Override: If rating is < 4 and sentiment is positive, mark as Negative
+df.loc[(df['rating'] < 4) & (df['sentiment_label'] == 'Positive'), 'sentiment_label'] = 'Negative'
 
 # Streamlit App Configuration
 st.set_page_config(page_title="Mokobara Review Dashboard", layout="wide")
@@ -109,6 +114,68 @@ ax3.set_ylabel('Product Name')
 ax3.axvline(0, color='gray', linestyle='--')
 plt.tight_layout()
 st.pyplot(fig3)
+
+# Filter ratings 1, 2, 3
+st.subheader("⚠️ Sentiment Breakdown for Lower Ratings (1 to 3 Stars)")
+
+low_rated_df = df[df['rating'].isin([1, 2, 3])]
+
+# Show dataframe
+st.write("Here's what customers are saying when they give 1, 2, or 3 stars:")
+st.dataframe(low_rated_df[['product_name', 'rating', 'review_body', 'sentiment_label']])
+
+# Count sentiment labels within low ratings
+low_rating_sentiment = low_rated_df.groupby(['product_name', 'sentiment_label']).size().reset_index(name='count')
+
+# Bar chart
+fig_low = px.bar(low_rating_sentiment, 
+                 x='product_name', 
+                 y='count', 
+                 color='sentiment_label',
+                 color_discrete_map=mokobara_palette,
+                 title="Sentiment Distribution for Ratings 1 to 3")
+fig_low.update_layout(font=dict(family="Inter", size=14), xaxis_tickangle=-45)
+st.plotly_chart(fig_low, use_container_width=True)
+
+
+# Average Sentiment Score per Product for Negative Reviews
+st.subheader("🚨 Average Sentiment Score per Product (Negative Reviews Only)")
+
+# Filter only negative reviews (after corrected labeling)
+negative_df = df[df['sentiment_label'] == 'Negative']
+
+# Group and calculate average sentiment
+avg_negative_sentiment = negative_df.groupby('product_name')['sentiment_scores'].mean().sort_values()
+
+# Plot bar chart
+fig_neg, ax_neg = plt.subplots(figsize=(10, 6))
+sns.barplot(x=avg_negative_sentiment.values, y=avg_negative_sentiment.index, palette='Reds_r', ax=ax_neg)
+ax_neg.set_title('Average Sentiment Score per Product (Negative Reviews)')
+ax_neg.set_xlabel('Average Sentiment Score')
+ax_neg.set_ylabel('Product Name')
+ax_neg.axvline(0, color='gray', linestyle='--')
+plt.tight_layout()
+st.pyplot(fig_neg)
+
+# Word Cloud for Negative Reviews
+st.subheader("☁️ Word Cloud — Negative Reviews Only")
+
+# Generate text from only negative review bodies
+negative_text = " ".join(negative_df['review_body'].dropna())
+
+# Define a red/black color palette
+negative_wordcloud_colors = ['#8B0000', '#FF0000', '#B22222', '#DC143C', '#2B2B2B']
+
+def negative_color_func(word, font_size, position, orientation, random_state=None, **kwargs):
+    return random.choice(negative_wordcloud_colors)
+
+# Generate word cloud
+negative_wordcloud = WordCloud(width=800, height=400, background_color='white',
+                               color_func=negative_color_func).generate(negative_text)
+
+# Show the word cloud
+st.image(negative_wordcloud.to_array(), use_container_width=True)
+
 
 # Filter & Explore Reviews
 st.subheader("🔍 Explore Individual Reviews")
